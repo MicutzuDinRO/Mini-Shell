@@ -66,7 +66,7 @@ static int parse_simple(simple_command_t *s, int level, command_t *father)
 		int fd;
 
 		if (s->in != NULL) {
-			fd = open(get_word(s->in), O_RDONLY);
+			fd = open(get_word(s->in), O_RDONLY, 0644);
 			close(fd);
 		}
 
