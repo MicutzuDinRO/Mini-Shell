@@ -23,7 +23,7 @@
 static bool shell_cd(word_t *dir)
 {
 	/* Execute cd. */
-	if (dir == NULL || dir->string == NULL || strcmp(dir->string, "~") == 0 || strcmp(dir->string, "") == 0)
+	if (dir == NULL || strcmp(dir->string, "~") == 0)
 		if (chdir(getenv("HOME")) == -1)
 			return -1;
 
