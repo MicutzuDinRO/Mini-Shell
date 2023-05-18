@@ -25,16 +25,16 @@ static bool shell_cd(word_t *dir)
 	/* Execute cd. */
 	if (dir == NULL || dir->string == NULL || strcmp(dir->string, "~") == 0 || strcmp(dir->string, "") == 0)
 		if (chdir(getenv("HOME")) == -1)
-			return false;
+			return -1;
 
 	if (strcmp(dir->string, "-") == 0)
 		if (chdir(getenv("OLDPWD")) == -1)
-			return false;
+			return -1;
 
 	if (chdir(dir->string) == -1)
-		return false;
+		return -1;
 
-	return true;
+	return 0;
 }
 
 /**
@@ -66,22 +66,22 @@ static int parse_simple(simple_command_t *s, int level, command_t *father)
 		int fd;
 
 		if (s->in != NULL) {
-			fd = open(s->in->string, O_RDONLY);
+			fd = open(get_word(s->in), O_RDONLY);
 			close(fd);
 		}
 
 		if (s->out != NULL) {
-			fd = open(s->out->string, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+			fd = open(get_word(s->out), O_WRONLY | O_CREAT | O_TRUNC, 0644);
 			close(fd);
 		}
 
 		if (s->err != NULL) {
-			fd = open(s->err->string, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+			fd = open(get_word(s->err), O_WRONLY | O_CREAT | O_TRUNC, 0644);
 			dup2(fd, STDERR_FILENO);
 			close(fd);
 		}
 
-		return !shell_cd(s->params);
+		return shell_cd(s->params);
 	}
 
 	if (strcmp(s->verb->string, "exit") == 0 || strcmp(s->verb->string, "quit") == 0)
@@ -152,7 +152,7 @@ static int parse_simple(simple_command_t *s, int level, command_t *father)
 		if (rc == -1)
 			return -1;
 		if (WIFEXITED(status))
-			return status;
+			return WEXITSTATUS(status);
 		return 0;
 	}
 
@@ -172,7 +172,7 @@ static bool run_in_parallel(command_t *cmd1, command_t *cmd2, int level,
 	pid1 = fork();
 	switch (pid1) {
 	case -1:
-		return false;
+		return -1;
 
 	case 0:
 		rc = parse_command(cmd1, level + 1, father);
@@ -182,7 +182,7 @@ static bool run_in_parallel(command_t *cmd1, command_t *cmd2, int level,
 		pid2 = fork();
 		switch (pid2) {
 		case -1:
-			return false;
+			return -1;
 
 		case 0:
 			rc = parse_command(cmd2, level + 1, father);
@@ -190,16 +190,14 @@ static bool run_in_parallel(command_t *cmd1, command_t *cmd2, int level,
 
 		default:
 			rc = waitpid(pid1, &status1, 0);
+			rc &= waitpid(pid2, &status2, 0);
 			if (rc == -1)
-				return false;
-			rc = waitpid(pid2, &status2, 0);
-			if (rc == -1)
-				return false;
-			return status1 && status2;
+				return -1;
+			return WEXITSTATUS(status1) && WEXITSTATUS(status2);
 		}
 	}
 
-	return false; /* Replace with actual exit status. */
+	return -1; /* Replace with actual exit status. */
 }
 
 /**
@@ -215,12 +213,12 @@ static bool run_on_pipe(command_t *cmd1, command_t *cmd2, int level,
 
 	rc = pipe(fd);
 	if (rc == -1)
-		return false;
+		return -1;
 
 	pid1 = fork();
 	switch (pid1) {
 	case -1:
-		return false;
+		return -1;
 
 	case 0:
 		close(fd[0]);
@@ -234,7 +232,7 @@ static bool run_on_pipe(command_t *cmd1, command_t *cmd2, int level,
 		pid2 = fork();
 		switch (pid2) {
 		case -1:
-			return false;
+			return -1;
 
 		case 0:
 			dup2(fd[0], STDIN_FILENO);
@@ -245,16 +243,14 @@ static bool run_on_pipe(command_t *cmd1, command_t *cmd2, int level,
 		default:
 			close(fd[0]);
 			rc = waitpid(pid1, &status1, 0);
+			rc &= waitpid(pid2, &status2, 0);
 			if (rc == -1)
-				return false;
-			rc = waitpid(pid2, &status2, 0);
-			if (rc == -1)
-				return false;
-			return status2;
+				return -1;
+			return WEXITSTATUS(status2);
 		}
 	}
 
-	return false; /* Replace with actual exit status. */
+	return -1; /* Replace with actual exit status. */
 }
 
 /**
