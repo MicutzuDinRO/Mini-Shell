@@ -77,7 +77,6 @@ static int parse_simple(simple_command_t *s, int level, command_t *father)
 
 		if (s->err != NULL) {
 			fd = open(get_word(s->err), O_WRONLY | O_CREAT | O_TRUNC, 0644);
-			dup2(fd, STDERR_FILENO);
 			close(fd);
 		}
 
